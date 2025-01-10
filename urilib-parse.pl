@@ -1,6 +1,6 @@
 % -*- Mode: Prolog -*-
 
-% Studenti
+% Studenti:
 % Riccardo Betelli 914471
 % Isabella Faifer // 
 
@@ -20,10 +20,15 @@ urilib_parse(URIString, URI) :-
 
     is_standard(Rest1, IsStandard),
 
-    % PROBLEMI QUI
-    get_userinfo(Rest1, UserInfo, Rest2, IsStandard, Bool2),
+    remove_slash(Rest1, Rest2),
+    
+    get_userinfo(Rest2, UserInfoAt, Rest3, IsStandard),
 
-    URI = uri(Scheme, UserInfo, Rest2, _, _, _, _).
+%    to_string_if_not_empty(UserInfoAt, UserInfo),
+
+    get_host(Rest3, Host, Rest4, IsStandard),
+    
+    URI = uri(Scheme, UserInfoAt, Host, Rest4, IsStandard, _, _).
 
 
 
@@ -45,33 +50,68 @@ get_scheme([X | Xs], [X | Ys], Cut) :-
 
 
 
-% get_userinfo/3
+% get_userinfo/5
 % divide la lista in due liste, una contenente (se c'è) lo userinfo
 % l'altra contenente il resto della lista
 
-% DA PROBLEMI, DA RIFARE
+get_userinfo(L, [], L, Check) :-
+    Check == 0.
 
-get_userinfo(L, Y, Rest, IsStandard, Bool) :-
-    IsStandard == 0,
-    Y is [].
+get_userinfo(Ls, [], Ls, 1) :-
+    not(find_snail(Ls)).
 
-get_userinfo(L, Y, Rest, IsStandard, Bool) :-
-    IsStandard == 1,
-    get_userinfo(L, Y, Rest, Bool).
+get_userinfo([@ | Ls], [], Ls, 1).
 
-get_userinfo([/ | Ls], Y, Rest, Bool) :-
-    get_userinfo(Ls, Y, Rest, Bool).
-
-get_userinfo([L | Ls], [L | Ys], Rest, Bool) :-
-    chek_identificatore(L),
+get_userinfo([L | Ls], [L | Ys], Rest, 1) :-
     L \== @,
-    get_userinfo(Ls, Ys, Rest, 1, Bool).
+    chek_identificatore(L),
+    get_userinfo(Ls, Ys, Rest, 1).
 
-get_userinfo([@ | Ls], [], Ls, Bool) :-
-    Bool is 1.
 
-%get_userinfo([], [], Rest, Bool) :-
-%    Bool is 0.
+
+% get_host/4
+
+get_host(L, [], L, 0).
+
+get_host(L, H, Rest, 1) :-
+    get_host(L, H, Rest).
+
+get_host([L | Ls], [L | Ys], Rest) :-
+    char_type(L, alpha),
+    get_host_name(Ls, Ys, Rest).
+
+get_host([L | Ls], [L | Ys], Rest) :-
+    char_type(L, digit),
+    het_host_ip().
+
+
+
+% get_host_name/3
+
+get_host_name([L | Ls], [L | Ys], Rest) :-
+    check_iden_host(L),
+    get_host_name(Ls, Ys, Rest).
+
+get_host_name([], [], []).
+
+get_host_name([L | Ls], [], [L | Ls]) :-
+    not(char_type(L, digit)).
+
+
+
+% get_host_ip/3
+
+get_host_ip().
+
+
+
+% remove_slash/2
+
+remove_slash([/, / | Ls], Ls).
+
+remove_slash([L1, L2 | Ls], [L1, L2 | Ls]) :-
+    L1 \== '/',
+    L2 \== '/'.
 
 
 
@@ -114,6 +154,34 @@ chek_identificatore(C) :-
 
 chek_identificatore(C) :-
     C == '-'.
+
+
+
+% check_iden_host/1
+
+check_iden_host(C) :-
+    char_type(C, alnum).
+
+check_iden_host(C) :-
+    C == '.'.
+
+
+
+% to_string_if_not_empty/2
+
+to_string_if_not_empty(L1, L2) :-
+    L1 == [_|_],
+    atomics_to_string(L1, L2).
+
+to_string_if_not_empty(L1, []) :-
+    L1 == [].
+
+
+
+find_snail([L | Ls]) :-
+    L \== @,
+    find_snail(Ls).
+
 
 
 
