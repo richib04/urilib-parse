@@ -21,14 +21,16 @@ urilib_parse(URIString, URI) :-
     is_standard(Rest1, IsStandard),
 
     remove_slash(Rest1, Rest2),
+
+    userinfo_presence(Rest2, IsStandard, Bool1),
     
-    get_userinfo(Rest2, UserInfoAt, Rest3, IsStandard),
+    get_userinfo(Rest2, UserInfoAt, Rest3, IsStandard, Bool1),
 
 %    to_string_if_not_empty(UserInfoAt, UserInfo),
 
     get_host(Rest3, Host, Rest4, IsStandard),
     
-    URI = uri(Scheme, UserInfoAt, Host, Rest4, IsStandard, _, _).
+    URI = uri(Scheme, UserInfoAt, Host, _, _, _, Rest4).
 
 
 
@@ -54,35 +56,42 @@ get_scheme([X | Xs], [X | Ys], Cut) :-
 % divide la lista in due liste, una contenente (se c'è) lo userinfo
 % l'altra contenente il resto della lista
 
-get_userinfo(L, [], L, Check) :-
+get_userinfo(L, [], L, Std, Check) :-
     Check == 0.
 
-get_userinfo(Ls, [], Ls, 1) :-
-    not(find_snail(Ls)).
+get_userinfo(L, Y, Rest, Std, Check) :-
+    Std == 1,
+    Check == 1,
+    get_userinfo(L, Y, Rest).
 
-get_userinfo([@ | Ls], [], Ls, 1).
+get_userinfo([@ | Ls], [], Ls).
 
-get_userinfo([L | Ls], [L | Ys], Rest, 1) :-
+get_userinfo([L | Ls], [L | Ys], Rest) :-
     L \== @,
     chek_identificatore(L),
-    get_userinfo(Ls, Ys, Rest, 1).
+    get_userinfo(Ls, Ys, Rest).
 
 
 
 % get_host/4
+% divide la lista in due liste, la prima contente l'host la
+% seconda il resto della lista iniziale
+
+% DOMANI LO FAI FUNZIONARE CON LO SCREEN
 
 get_host(L, [], L, 0).
 
 get_host(L, H, Rest, 1) :-
-    get_host(L, H, Rest).
+    get_host_p(L, H, Rest).
 
-get_host([L | Ls], [L | Ys], Rest) :-
+get_host_p([L | Ls], [L | Ys], Rest) :-
     char_type(L, alpha),
     get_host_name(Ls, Ys, Rest).
 
-get_host([L | Ls], [L | Ys], Rest) :-
+get_host_p([L | Ls], [L | Ys], Rest) :-
     char_type(L, digit),
-    het_host_ip().
+    get_host_ip([L | LS], [L | Ys], Rest).
+
 
 
 
@@ -94,14 +103,51 @@ get_host_name([L | Ls], [L | Ys], Rest) :-
 
 get_host_name([], [], []).
 
-get_host_name([L | Ls], [], [L | Ls]) :-
-    not(char_type(L, digit)).
+get_host_name([L | Ls], [], [L | Ls]).
 
 
 
 % get_host_ip/3
 
-get_host_ip().
+get_host_ip(L, Y, R4) :-
+    get_host_ip_parts(L, A, R1, Z1),
+    check_ip_part(Z1),
+
+    get_host_ip_parts(R1, B, R2, Z2),
+    check_ip_part(Z2),
+
+    get_host_ip_parts(R2, C, R3, Z3),
+    check_ip_part(Z3),
+
+    get_host_ip_parts(R3, D, R4, Z4),
+    check_ip_part(Z4),
+    
+    append(A, B, Y1),
+    append(Y1, C, Y2),
+    append(Y2, D, Y).
+
+get_host_ip_parts([L | Ls], [L | Ys], Rest, [L | Zs]) :-
+    L \== '.',
+    char_type(L, digit),
+    get_host_ip_parts(Ls, Ys, Rest, Zs).
+
+get_host_ip_parts([Ch | Ls], Ch, Ls, []) :-
+    Ch = '.'.
+
+%get_host_ip_parts([], [], [], []).
+
+%get_host_ip_parts([L | Ls], [], [L | Ls], []).
+
+
+get_host_ip_parts([L | Ls], L, Ls, L) :-
+    char_type(L, digit),
+    length(Ls, Len),
+    Len == 0.
+
+get_host_ip_parts([L | Ls], L, Ls, [L | _]) :-
+    char_type(L, digit),
+    check_rest(Ls).
+    
 
 
 
@@ -178,11 +224,51 @@ to_string_if_not_empty(L1, []) :-
 
 
 
-find_snail([L | Ls]) :-
+% not_snail/1
+
+not_snail([L | Ls]) :-
     L \== @,
-    find_snail(Ls).
+    not_snail(Ls).
 
 
+
+% userinfo_presence/3
+
+userinfo_presence(L, Check, Bool) :-
+    not(not_snail(L)),
+    Check == 1,
+    Bool is 1.
+
+userinfo_presence(L, Check, Bool) :-
+    Bool is 0.
+
+
+
+% list_To_Num/2
+
+list_To_Num(L, N) :-
+    atomic_list_concat(L, A),
+    atom_number(A, N).
+
+
+
+% check_ip_part/1
+
+check_ip_part(Z) :-
+    atomics_to_string(Z, Zs),
+    string_length(Zs, Len),
+    Len =< 3,
+    list_To_Num(Z, N),
+    N >= 0,
+    N =< 255.
+
+
+
+%check_rest/1
+
+check_rest([L | Ls]) :-
+    L \== '.',
+    not(char_type(L, digit)).
 
 
 
