@@ -28,9 +28,9 @@ urilib_parse(URIString, URI) :-
 
     userinfo_presence(Rest2, Sch, Aut, UserI),
     
-    get_userinfo(Rest2, UserInfoAt, Rest3, Sch, UserI),
+    get_userinfo(Rest2, NormalUserAt, Rest3, Sch, UserI),
 
-    get_host(Rest3, HostAt, Rest4, Sch, Aut),
+    get_host(Rest3, NormalHostAt, Rest4, Sch, Aut),
 
     get_port(Rest4, PortAt, Rest5, Sch, Aut),
 
@@ -39,6 +39,16 @@ urilib_parse(URIString, URI) :-
     get_query(Rest6, QueryAt, Rest7, Sch),
 
     get_fragment(Rest7, FragAt, Rest8, Sch),
+
+    get_userinfo_special(Rest8, SpecialUserAt, Rest9, Sch),
+
+    get_host_special(Rest9, SpecialHostAt, Rest10, Sch),
+
+    is_empty(Rest10),
+
+    choose_not_empty(NormalUserAt, SpecialUserAt, UserInfoAt),
+
+    choose_not_empty(NormalHostAt, SpecialHostAt, HostAt),
 
     to_string_if_not_empty(UserInfoAt, UserInfo),
 
@@ -55,11 +65,62 @@ urilib_parse(URIString, URI) :-
     URI = uri(Scheme, UserInfo, Host, Port, Path, Query, Fragment).
 
 
+
 % SISTEMA CASO IDENTIFICATORE VUOTO (FAIL)
+% SISTEMA CASO HOST VUOTO SE C'E' AUTHORITY
 
 
 
 uri(_, _, _, _, _, _, _).
+
+
+
+uri_display(URI) :-
+    URI =.. [_, Scheme, UserInfo, Host, Port, Path, Query, Fragment | _],
+    write('Scheme: '),
+    write(Scheme),
+    write('\n'),
+    write('UserInfo: '),
+    write(UserInfo),
+    write('\n'),
+    write('Host: '),
+    write(Host),
+    write('\n'),
+    write('Port: '),
+    write(Port),
+    write('\n'),
+    write('Path: '),
+    write(Path),
+    write('\n'),
+    write('Query: '),
+    write(Query),
+    write('\n'),
+    write('Fragment: '),
+    write(Fragment), !.
+
+uri_display(URI, Output) :-
+    URI =.. [_, Scheme, UserInfo, Host, Port, Path, Query, Fragment | _],
+    write(Output, 'Scheme: '),
+    write(Output, Scheme),
+    write(Output, '\n'),
+    write(Output, 'UserInfo: '),
+    write(Output, UserInfo),
+    write(Output, '\n'),
+    write(Output, 'Host: '),
+    write(Output, Host),
+    write(Output, '\n'),
+    write(Output, 'Port: '),
+    write(Output, Port),
+    write(Output, '\n'),
+    write(Output, 'Path: '),
+    write(Output, Path),
+    write(Output, '\n'),
+    write(Output, 'Query: '),
+    write(Output, Query),
+    write(Output, '\n'),
+    write(Output, 'Fragment: '),
+    write(Output, Fragment),
+    close(Output).
 
 
 
@@ -224,23 +285,49 @@ get_port_num([], [], []).
 get_path(L, [], L, Sch, Aut) :-
     Sch > 2.
 
+% get_path in caso si scheme = zos
+
+get_path([L1, L2 | Ls], [L1, L2 | P], Rest, Sch, Aut) :-
+    Sch == 2,
+    Aut == 1,
+    L1 == '/',
+    char_type(L2, alpha),
+    get_path_zos(Ls, P, Rest).
+
+get_path([L1, L2 | Ls], [L1, L2 | P], Rest, Sch, Aut) :-
+    Sch == 2,
+    Aut == 0,
+    L1 == '/',
+    char_type(L2, alpha),
+    get_path_zos([L2 | Ls], [L2 | P], Rest).
+
+get_path([L | Ls], [L | P], Rest, Sch, Aut) :-
+    Sch == 2,
+    Aut == 0,
+    L \== '/',
+    char_type(L, alpha),
+    get_path_zos([L | Ls], [L | P], Rest).
+
+% get_path in caso di scheme = standard
+
 get_path([L | Ls], P, Rest, Sch, Aut) :-
-    Sch =< 2,
+    Sch == 1,
     Aut == 1,
     L == '/',
     get_path([L | Ls], P, Rest).
 
 get_path([L | Ls], P, Rest, Sch, Aut) :-
-    Sch =< 2,
+    Sch == 1,
     Aut == 0,
     L == '/',
     get_path([L | Ls], P, Rest).
 
 get_path([L | Ls], P, Rest, Sch, Aut) :-
-    Sch =< 2,
+    Sch == 1,
     Aut == 0,
     L \== '/',
     get_path([L | Ls], P, Rest).
+
 
 get_path([], [], [], Sch, Aut).
 
@@ -252,6 +339,36 @@ get_path([], [], []).
 
 get_path([L | Ls], [], [L | Ls]) :-
     not(check_iden_path(L)).
+
+
+
+% get_path_zos/3
+
+get_path_zos([L | Ls], [L | Ys], R) :-
+    check_iden_host(L),
+    get_path_zos(Ls, Ys, R).
+
+get_path_zos(['(', L | Ls], ['(', L | Ys], R) :-
+    char_type(L, alpha),
+    get_path_zos_id8(Ls, Ys, R).
+
+get_path_zos([], [], []).
+
+get_path_zos([L | Ls], [], [L | Ls]) :-
+    not(check_iden_host(L)),
+    L \== '('.
+
+
+
+% get_path_zos_id8/3
+
+get_path_zos_id8([L | Ls], [L | Ys], R) :-
+    char_type(L, alnum),
+    get_path_zos_id8(Ls, Ys, R).
+
+get_path_zos_id8([')' | Ls], [')'], Ls).
+
+
 
 
 
@@ -299,6 +416,45 @@ get_fragment([L | Ls], [L | Ys], R) :-
 get_fragment([], [], []).
 
 get_fragment(L, [], L).
+
+
+
+% get_userinfo_special/4
+
+get_userinfo_special(L, [], L, Sch) :-
+    Sch \== 5,
+    Sch \== 4.
+
+get_userinfo_special([L | Ls], Y, R, Sch) :-
+    Sch == 5,
+    check_identificatore(L),
+    get_userinfo_special([L | Ls], Y, R).
+
+get_userinfo_special([L | Ls], Y, R, Sch) :-
+    Sch == 4,
+    check_identificatore(L),
+    get_userinfo_special([L | Ls], Y, R).
+
+get_userinfo_special([L | Ls], [L | Ys], R) :-
+    check_identificatore(L),
+    get_userinfo_special(Ls, Ys, R).
+
+get_userinfo_special([L | Ls], [], [L | Ls]).
+
+get_userinfo_special([], [], []).
+
+
+
+% get_host_special/4
+
+get_host_special(L, [], L, Sch) :-
+    Sch \== 5.
+
+get_host_special([], [], [], Sch).
+
+get_host_special(['@' | Ls], Y, R, Sch) :-
+    Sch == 5,
+    get_host(Ls, Y, R).
 
 
 
@@ -373,6 +529,11 @@ check_scheme(L, 4) :-
 check_scheme(L, 4) :-
     L == "fax".
 
+check_scheme(L, 5) :-
+    L == "mailto".
+
+
+
 
 
 % check_identificatore/1
@@ -417,6 +578,20 @@ to_string_if_not_empty(L1, L1) :-
 
 
 
+% choose_userinfo/3
+
+choose_not_empty(L1, L2, L1) :-
+    length(L1, Len1),
+    Len1 > 0.
+
+choose_not_empty(L1, L2, L2) :-
+    length(L2, Len2),
+    Len2 > 0.
+
+choose_not_empty([], [], []).
+
+
+
 % not_snail/1
 
 not_snail([L | Ls]) :-
@@ -453,6 +628,9 @@ check_ip_part(Z) :-
     list_To_Num(Z, N),
     N >= 0,
     N =< 255.
+
+
+is_empty([]).
 
 
 
